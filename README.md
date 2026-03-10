@@ -16,47 +16,62 @@
 
 Pick up a Rubik's Cube. Scramble it. Now try to solve it.
 
-Most people get stuck almost immediately -- not because they are not clever, but because the problem is genuinely enormous. That small plastic object has **43,252,003,274,489,856,000** possible configurations. If you tried every single one at a rate of one per second, you would still be going long after the sun burned out.
+Most people get stuck almost immediately — not because they are not clever, but because the problem is genuinely enormous. That small plastic object has **43,252,003,274,489,856,000** possible configurations. If you tried every single one at a rate of one per second, you would still be going long after the sun burned out.
 
 And yet in 2010, mathematicians proved something remarkable: no matter how scrambled a cube is, it can always be solved in **20 moves or fewer**. Every single one of those 43 quintillion states. Twenty moves. That limit became known as God's Number.
 
-This project implements the algorithm that actually gets there -- not by trying everything, but by being genuinely intelligent about what to try. It wraps that algorithm in a web interface where you can hand it any scramble and watch it solve the cube step by step, in real time, in 3D.
+This project implements the algorithm that gets there — not by trying everything, but by being genuinely intelligent about what to try. It wraps that algorithm in a web interface where you can hand it any scramble and watch it solve the cube step by step, in real time, in 3D.
 
 <br>
 
 ---
 
-## The Core Idea
+## How Big Is the Problem, Really
 
-Before a single line of code was written, there was a question worth sitting with: how do you solve something with 43 quintillion possibilities in milliseconds?
+Before talking about the solution, it helps to feel the actual size of what is being solved. Here is what 43 quintillion looks like in time.
 
-The naive answer is to search. Try a move. Then another. Keep going until you find solved. The problem with that approach is that the search tree explodes catastrophically. After just 10 moves you have already visited billions of states. After 20 you are drowning. Random search is not a strategy -- it is a way to fail slowly.
+| Speed of search | Time to visit every possible state |
+|:---|:---|
+| 1 state per second | 1.4 **trillion** years |
+| 1 state per millisecond | 1.4 **billion** years |
+| 1 state per microsecond | 1.4 **million** years |
+| 1 state per nanosecond | 1,400 years |
 
-The insight behind Kociemba's Two-Phase Algorithm is that you do not need to search all of that space. The cube has hidden structure -- mathematical symmetry -- and that structure lets you shrink the problem dramatically before you ever start searching.
+The universe is 13.8 billion years old. Even at nanosecond speed, brute force would take longer than all of recorded human history — many times over. This is why the algorithm matters. The difference between a naive search and Kociemba's Two-Phase Algorithm is not a speedup. It is the difference between impossible and instant.
 
-The idea works like this. Instead of trying to jump from a scrambled cube directly to solved in one search, the algorithm breaks the journey into two stages. First, get the cube into a special restricted state where a large class of the hardest moves are no longer needed. Second, solve it from that restricted state. Each stage searches a space that is orders of magnitude smaller than the full problem.
+<br>
 
-```mermaid
-flowchart LR
-    A(["🎲 Any scrambled cube\n43 quintillion states"]) --> B
+---
 
-    subgraph Phase1 ["Stage 1   Narrow the problem"]
-        B["Find a short sequence of moves\nthat brings the cube into\na calmer restricted state"]
-    end
+## The Core Idea: Shrink Before You Search
 
-    B --> C(["🔵 Restricted state\n~2 billion states\n99.99% of the problem eliminated"])
-    C --> D
+The key insight is that you do not need to search all 43 quintillion states. The cube has hidden mathematical structure, and that structure lets you shrink the problem dramatically before searching anything.
 
-    subgraph Phase2 ["Stage 2   Finish from there"]
-        D["Search the restricted space\nand find the final solution"]
-    end
+Rather than jumping from a scrambled cube to solved in one enormous search, the algorithm splits the journey into two stages.
 
-    D --> E(["✅ Solved\n20 moves or fewer"])
+```
+  SCRAMBLED CUBE                  RESTRICTED STATE                SOLVED CUBE
+  43 quintillion states    ──►    ~2 billion states        ──►    1 state
+  
+  Stage 1                         Stage 2
+  ─────────────────────────       ─────────────────────────
+  Goal    reach G1 subgroup       Goal    reach solved
+  Moves   all 18 moves            Moves   restricted set only
+  Space   43 quintillion          Space   ~2 billion
+  Guided  by pruning tables       Guided  by pruning tables
 ```
 
-Going from 43 quintillion down to 2 billion is not just a small improvement. It is the difference between a search that takes the age of the universe and one that takes 50 milliseconds. The restriction is doing almost all of the work.
+Getting from 43 quintillion down to 2 billion eliminates 99.99% of the search space before Stage 2 even begins. That restriction is doing almost all of the work.
 
-There is one more ingredient that makes this practical: a set of lookup tables built once at startup. These tables answer a single question for any cube state -- *what is the minimum number of moves still needed from here?* With that answer available instantly, the search can skip dead-end paths immediately rather than exploring them. Building those tables takes a few seconds when the server starts. After that, every solve query is fast.
+One more ingredient makes both stages fast — **pruning tables** built once when the server starts. These tables answer a single question for any cube state: *what is the minimum number of moves still needed from here?* With that answer available instantly, the search prunes dead-end paths before exploring them. Building the tables takes a few seconds at startup. Every solve after that takes milliseconds.
+
+| Pruning table | States it covers | Used in |
+|:---|:---:|:---:|
+| Corner orientation distances | 2,187 | Stage 1 |
+| Edge orientation distances | 2,048 | Stage 1 |
+| Slice edge position distances | 495 | Stage 1 |
+| Corner permutation distances | 40,320 | Stage 2 |
+| Edge permutation distances | 40,320 | Stage 2 |
 
 <br>
 
@@ -64,28 +79,45 @@ There is one more ingredient that makes this practical: a set of lookup tables b
 
 ## How the Cube Is Described in Code
 
-Before the algorithm can run, it needs to read a physical scrambled cube and translate it into something a search can operate on. This translation happens in three steps, and each step is necessary.
+A search algorithm cannot look at a colored plastic cube. Before the algorithm can run, the cube has to be translated into something a computer can reason about mathematically. That translation happens in three steps.
 
-Imagine you are holding a scrambled cube right now. What you see is colors -- orange here, blue there, white on top. That is a human description. It is how you would describe the cube to a friend. But it tells a search algorithm almost nothing useful about the cube's mathematical state.
+Think of describing a city. You could describe it as a photograph — what it looks like. Or as a street map — which block is where. Or as GPS coordinates — pure numbers for a routing engine. Same city, three completely different descriptions, each useful for a different purpose. The cube works the same way.
 
-```mermaid
-flowchart TD
-    Human(["What you see\n54 colored squares\nacross 6 faces"]) -->|"Which piece lives in which slot?\nWhich way is it twisted?"| Physical
-
-    Physical(["What the cube is made of\n8 corner pieces\n12 edge pieces\nEach with a position and an orientation"]) -->|"Compress into\nsearchable numbers"| Mathematical
-
-    Mathematical(["What the algorithm operates on\n6 integers\nEach captures one property\nof the cube's state"])
-
-    Mathematical --> Search(["🔍 Search runs here\nMilliseconds to a solution"])
+```
+  ┌─────────────────────────────────────────────────────────────────┐
+  │  LAYER 1 — What you see                                         │
+  │  FaceCube                                                       │
+  │  54 colored squares, one per tile, recorded in a fixed order    │
+  │  "White, white, orange, red, blue..."                           │
+  └───────────────────────────┬─────────────────────────────────────┘
+                              │  Which piece is in which slot?
+                              │  Which way is it twisted?
+                              ▼
+  ┌─────────────────────────────────────────────────────────────────┐
+  │  LAYER 2 — What the cube is made of                             │
+  │  CubieCube                                                      │
+  │  8 corner pieces + 12 edge pieces                               │
+  │  Each has a position and an orientation                         │
+  │  Turning a face rotates specific pieces and changes orientation  │
+  └───────────────────────────┬─────────────────────────────────────┘
+                              │  Compress into
+                              │  searchable numbers
+                              ▼
+  ┌─────────────────────────────────────────────────────────────────┐
+  │  LAYER 3 — What the algorithm operates on                       │
+  │  CoordCube                                                      │
+  │  6 integers, each encoding one measurable property of state     │
+  │  Small enough to search, precise enough to be meaningful        │
+  └─────────────────────────────────────────────────────────────────┘
 ```
 
-The first step converts what you see into a list of 54 color values -- one per tile, in a fixed order. That is `FaceCube`. It is the bridge between human perception and code.
+| Layer | Class | Holds | Why it exists |
+|:---:|:---|:---|:---|
+| 1 | `FaceCube` | 54 color values in fixed order | Human-readable input — the bridge from what you see to what the code touches |
+| 2 | `CubieCube` | 8 corners and 12 edges, each with position and orientation | Physical mechanics — what actually moves and rotates when you turn a face |
+| 3 | `CoordCube` | 6 compressed integers | The searchable form — small enough for the algorithm to work with efficiently |
 
-The second step converts those colors into a description of the physical pieces. A real cube is made of 8 corner pieces and 12 edge pieces. Each corner can sit in any of 8 slots and be twisted in any of 3 ways. Each edge can sit in any of 12 slots and be flipped either way. When you turn a face, a specific set of pieces rotates. `CubieCube` captures this -- the actual mechanics of what the cube is doing, not just what it looks like.
-
-The third step compresses all of that physical information into 6 integers. Not because 6 integers are a perfect description -- they are not, they leave out some detail -- but because 6 integers can be searched. The algorithm lives at this level. `CoordCube` holds these numbers and the lookup tables built from them.
-
-This layered design is not incidental. Each layer exists because it is the right representation for a specific job: the color layer for input, the physical layer for move simulation, the coordinate layer for search. Translating cleanly between them -- without losing information, without introducing bugs -- was one of the most careful parts of the build.
+Getting the translation between Layer 1 and Layer 3 correct — without losing information, without an off-by-one error in orientation tracking — was one of the most careful parts of the entire build. A single mistake here produces solutions that look right but leave the cube one twist short of solved.
 
 <br>
 
@@ -93,30 +125,23 @@ This layered design is not incidental. Each layer exists because it is the right
 
 ## What Happens When You Click Solve
 
-You type a scramble. You click the button. Here is exactly what happens next, traced from your browser all the way through the system and back.
+You type a scramble. You click the button. Here is the exact journey from your browser to the animation playing back on screen.
 
-```mermaid
-sequenceDiagram
-    participant You as Your Browser
-    participant Server as Web Server
-    participant Layers as Translation Layers
-    participant Engine as Solver
-    participant Animator as Animation Engine
+| Step | What happens |
+|:---:|:---|
+| 1 | Browser sends your scramble string to the Java web server |
+| 2 | Server identifies the format: move notation or color grid |
+| 3 | Input is converted to a 54-character facelet string — Layer 1 |
+| 4 | Facelet colors are mapped to physical piece positions — Layer 2 |
+| 5 | Piece positions are compressed into 6 integers — Layer 3 |
+| 6 | Stage 1 searches for a path into the G1 restricted state |
+| 7 | Stage 2 solves the cube from within G1 |
+| 8 | The solution move list is returned |
+| 9 | Every intermediate cube state is generated, one per move |
+| 10 | The full animation trace is sent back to your browser |
+| 11 | Browser plays the solution frame by frame |
 
-    You->>Server: "Here is my scramble: R U R' U'..."
-    Server->>Layers: Parse and translate the input
-    Note over Layers: Moves → 54 colors → 8+12 pieces → 6 numbers
-    Layers->>Engine: Here are the 6 coordinates
-    Engine->>Engine: Phase 1: find path into restricted space
-    Engine->>Engine: Phase 2: solve within restricted space
-    Engine-->>Server: Solution move list
-    Server->>Animator: Generate every intermediate cube state
-    Note over Animator: One snapshot per move in the solution
-    Animator-->>You: Full animation trace + move sequence
-    You->>You: Play the solve step by step
-```
-
-The journey from your scramble to the first animation frame takes milliseconds. The server is pure Java with no framework -- just the JDK's own lightweight HTTP server -- which keeps the deployment footprint small and the startup time fast. The same server runs locally, in Docker, on Fly.io, on Railway and on Render without a single code change.
+Steps 1 through 10 take milliseconds. The server runs pure Java 17 with no external framework — just the JDK's own lightweight HTTP server — which keeps the startup fast and the deployment portable across every cloud platform without a code change.
 
 <br>
 
@@ -124,13 +149,53 @@ The journey from your scramble to the first animation frame takes milliseconds. 
 
 ## Watching It Solve: Two Views
 
-Once the solution is ready, you can watch it play out in two different ways -- and switch between them at any point.
+Once the solution arrives, you can watch it two ways and switch between them at any point.
 
-The **flat view** unfolds the cube like a cardboard box and lays all six faces out in a cross. Every tile is visible at once. As each move plays, the tiles shift and you can see exactly which pieces are moving and where they end up. It is the clearest way to understand the logic of the solution -- you can follow each move as a concrete action on a visible map.
+| | Flat 2D View | 3D Interactive View |
+|:---|:---|:---|
+| What you see | All 6 faces unfolded flat in a cross shape | The physical cube floating in space |
+| What moves | Colored tiles shift position after each move | Entire face groups rotate smoothly |
+| Best for | Following the logic — you see exactly which tile goes where | The experience — it feels like watching someone actually solve it |
+| Works on | Everything, including low-end mobile | All modern browsers with WebGL |
+| Powered by | HTML Canvas in `app.js` | Three.js WebGL in `cube3d.js` |
 
-The **3D view** is the cube in space. You can rotate it with your mouse, look at it from any angle, and watch each face turn as a smooth physical rotation. It is how the solution actually feels -- the same satisfaction as watching a speedcuber's hands work, but in slow motion, from any direction.
+Both views run on the same animation trace — the array of cube snapshots generated in step 9 above. A move counter shows where you are. A copy button puts the full solution sequence on your clipboard.
 
-Both views are driven by the same animation engine. When the backend returns a solution, it also returns the full trace -- every intermediate state of the cube, one snapshot per move. The animation simply plays through those snapshots at a readable pace, with a move counter running and a button to copy the full solution sequence to your clipboard.
+<br>
+
+---
+
+## The Whole System at a Glance
+
+```mermaid
+mindmap
+  root((Rubik's Cube Solver))
+    Algorithm
+      Kociemba Two-Phase
+      Stage 1 into G1
+      Stage 2 within G1
+      Pruning tables
+    Backend
+      Pure Java 17
+      No framework
+      REST API
+      Port auto-detect
+    Frontend
+      2D flat view
+      3D Three.js view
+      Shared animation engine
+      Drag and drop input
+    Deployment
+      Fly.io live demo
+      Railway
+      Render
+      Docker
+      Local run scripts
+    Testing
+      40 scramble files
+      Full range of difficulty
+      All solutions verified
+```
 
 <br>
 
@@ -138,11 +203,17 @@ Both views are driven by the same animation engine. When the backend returns a s
 
 ## The 40 Test Cases
 
-A solver is only trustworthy if you can verify it. Finding a short move sequence is not enough -- you also need to confirm that applying that sequence to the scrambled cube actually produces a solved state. For every case. Without exception.
+Finding a short move sequence is not enough. The solution has to actually work when you apply it to the scrambled cube. Every single time.
 
-The project includes 40 scramble files covering the full range of difficulty: simple scrambles, deeply scrambled states near the theoretical 20-move maximum, scrambles designed to exercise specific corner cases in the two-phase search, and states that are just a few moves away from solved. Every solution was verified by applying it back to the scramble and checking that the result matched a fully solved cube.
+| Scramble category | What it stress-tests |
+|:---|:---|
+| Shallow (1 to 5 moves from solved) | Basic pipeline correctness |
+| Medium (6 to 12 moves) | Phase 1 across a range of depths |
+| Deep (13 to 20 moves) | Maximum search stress, near God's Number |
+| Near-G1 states | Phase 1 termination and edge cases |
+| Symmetric scrambles | Orientation tracking under symmetric configurations |
 
-That verification step is unambiguous. A correct solution produces one specific string. Any deviation means something is wrong -- in the move application logic, in the representation conversion, or in the search itself. Forty files, forty confirmations.
+A correct solution applied to its scramble must produce the exact canonical solved state. Any deviation is an unambiguous bug — in move application, in layer translation or in the search itself. All 40 pass.
 
 <br>
 
@@ -150,15 +221,15 @@ That verification step is unambiguous. A correct solution produces one specific 
 
 ## What This Project Actually Demonstrates
 
-Solving a Rubik's Cube is the surface. Underneath it, this project is about four things that show up in real engineering constantly.
+Solving a Rubik's Cube is the surface. Underneath it, this project is about four ideas that show up in real engineering constantly.
 
-**The right representation changes what is possible.** The same cube, described three different ways, enables three completely different operations: color input, move simulation and mathematical search. None of those representations is universally correct -- each is right for its specific purpose. Knowing which representation to use for which job, and building the translations between them correctly, is a fundamental software design skill.
+**Representation determines what is possible.** The same cube described three ways enables three completely different operations: input, simulation, search. None is universally correct — each is right for its specific job. Knowing which representation to use for which task, and translating between them without losing information, is a design decision that runs through the entire codebase.
 
-**Precomputation is a legitimate strategy.** The solver is fast at query time because it spent time upfront building lookup tables. That is not a workaround -- it is a deliberate architectural choice. The same principle underlies database indexes, compiled code and DNS caches. Front-loading work that gets reused many times is often the right tradeoff.
+**Precomputation is a real strategy.** The solver is fast at query time because it spent a few seconds at startup building lookup tables. This is the same principle behind database indexes, compiled code and DNS caches. Front-loading work that will be reused many times is often the right architectural choice — not a shortcut, a design.
 
-**Separation between logic and interface pays off immediately.** The Java backend is a REST API with no opinions about what displays the result. When the 3D view was rebuilt from a canvas-based approach to Three.js, not a single line of Java changed. Clean separation means the interface can evolve freely without touching the algorithm. That is not an accident -- it was a constraint imposed at the start.
+**Clean separation lets things evolve.** The Java backend is a REST API with no opinions about the frontend. When the 3D view was rebuilt from canvas to Three.js, not a single line of Java changed. Interface and algorithm evolve independently when the boundary between them is clean from the start.
 
-**Known solutions are not trivial solutions.** Kociemba's algorithm is documented. Implementations exist in other languages. None of that made this easier to build from scratch. The pruning tables, the coordinate system, the two-phase orchestration, the representation layers, the animation trace -- each piece required real design and real debugging. The existence of prior art describes what to build, not how hard it is to build it.
+**Prior art is not the same as trivial.** Kociemba's algorithm is documented and implemented in other languages. None of that made building it from scratch easy. The pruning tables, the coordinate system, the two-phase orchestration, the layer translations, the animation trace — each required real design and real debugging. The existence of a solution tells you what to build, not how hard it is.
 
 <br>
 
@@ -166,9 +237,8 @@ Solving a Rubik's Cube is the surface. Underneath it, this project is about four
 
 ## Running It
 
-**Online -- nothing to install:**
-
-[rubikscube.fly.dev](https://rubikscube.fly.dev) -- may take a few seconds to wake from cold start.
+**Online:**
+[rubikscube.fly.dev](https://rubikscube.fly.dev) — may take a few seconds to wake on the free tier.
 
 **Windows:**
 ```bat
@@ -190,7 +260,7 @@ docker build -t rubiks-solver .
 docker run -p 8080:8080 rubiks-solver
 ```
 
-Open [http://localhost:8080](http://localhost:8080). Type a scramble like `R U R' U' R' F R2 U' R'` or drag a file from `testcases/` onto the page and click Solve.
+Open [http://localhost:8080](http://localhost:8080). Type a scramble like `R U R' U' R' F R2 U' R'` or drag a file from `testcases/` onto the page. Click Solve.
 
 <br>
 
@@ -202,18 +272,18 @@ Open [http://localhost:8080](http://localhost:8080). Type a scramble like `R U R
 RubiksCube-Solver-Java/
 ├── src/
 │   ├── RubikWebServer.java    HTTP server, routing, static files
-│   ├── Search.java            Kociemba Two-Phase Algorithm -- the solver
+│   ├── Search.java            Kociemba Two-Phase Algorithm
 │   ├── CoordCube.java         6-integer coordinates and precomputed tables
-│   ├── CubieCube.java         8 corners + 12 edges with all 18 move operations
-│   ├── FaceCube.java          54 colored squares and conversion to pieces
-│   ├── CubeInputUtil.java     Parse any input format into facelet string
+│   ├── CubieCube.java         8 corners and 12 edges with all 18 move operations
+│   ├── FaceCube.java          54-element color array and piece conversion
+│   ├── CubeInputUtil.java     Parse move notation or color grid to facelet string
 │   ├── CubeTraceUtil.java     Generate intermediate states for animation
-│   └── JsonUtil.java          Minimal JSON, no external dependencies
+│   └── JsonUtil.java          Minimal JSON without external dependencies
 ├── public/
 │   ├── index.html             Layout and controls
 │   ├── app.js                 2D flat view, canvas, animation
 │   └── cube3d.js              3D view, Three.js, drag rotation, animation
-├── testcases/                 40 scramble files for verification
+├── testcases/                 40 scramble files
 ├── Dockerfile                 Multi-stage build
 ├── fly.toml                   Fly.io
 ├── railway.json               Railway
