@@ -264,7 +264,7 @@ The answer was a JavaScript frontend that reimplements the cube state and move a
 Canvas 2D was our first prototype , it looked fine but layer rotation animations were painful to implement correctly. Babylon.js was a sledgehammer for a project whose entire visual complexity is six coloured squares on a box. Three.js was the right level: handles WebGL directly, precise enough for mesh manipulation, small enough to not matter.
 
 <p align="center">
-  <img src="docs/images/Screenshot_2026-03-09_223205.png" width="80%" alt="3D interactive cube , left-click to rotate layers, right-click to orbit" />
+  <img src="docs/images/Screenshot 2026-03-09 223205.png" width="80%" alt="3D interactive cube , left-click to rotate layers, right-click to orbit" />
 </p>
 
 The 3D view supports left-click-drag to rotate individual layers and right-click-drag to orbit the whole cube. Both interactions needed to be distinguishable from each other at the start of a drag. We used a small movement dead zone and determined intent from the initial drag direction before committing to either mode.
@@ -278,7 +278,7 @@ The 3D view is visually satisfying but not always the most useful tool. When a s
 The 2D net layout , U on top, L/F/R/B across the middle, D on the bottom , is the standard representation used in speedcubing notation and in every academic paper on Rubik's Cube algorithms. We implemented it first as a debugging aid and kept it as a primary view because it proved genuinely more readable for state verification.
 
 <p align="center">
-  <img src="docs/images/Screenshot_2026-03-09_223155.png" width="80%" alt="2D net view , all six faces visible simultaneously" />
+  <img src="docs/images/Screenshot 2026-03-09 223155.png" width="80%" alt="2D net view , all six faces visible simultaneously" />
 </p>
 
 Each face is a 3×3 grid of coloured squares. The colours update in real time as moves are applied during the animation. Watching the scramble unravel with all six faces visible at once makes the algorithm's behaviour legible in a way the 3D view alone does not.
