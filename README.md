@@ -180,17 +180,6 @@ mindmap
       No framework
       REST API
       Port auto-detect
-    Frontend
-      2D flat view
-      3D Three.js view
-      Shared animation engine
-      Drag and drop input
-    Deployment
-      Fly.io live demo
-      Railway
-      Render
-      Docker
-      Local run scripts
     Testing
       40 scramble files
       Full range of difficulty
