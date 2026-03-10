@@ -17,7 +17,7 @@
 ## See It in Action
 
 <p align="center">
-  <img src="docs/images/Recording_2026-03-09_223346.gif" width="760" alt="Full solve animation" />
+  <img src="docs/images/Recording 2026-03-09 223242.gif" width="760" alt="Full solve animation" />
 </p>
 
 Enter a scramble. Hit Solve. Watch every single move animate on the cube , layer by layer, step by step , until all six faces are solid. That animated playback is not decoration. It is the proof that the algorithm actually works, and the thing we spent the most engineering effort getting right.
