@@ -201,7 +201,7 @@ The answer was a JavaScript frontend that reimplements the cube state representa
 We used Three.js. Each cubie is a `BoxGeometry` with six `MeshBasicMaterial` faces. Layer rotations work by temporarily parenting the rotating cubies to a pivot object, applying the rotation to the pivot, then re-parenting the cubies back to the scene with updated world transforms.
 
 <p align="center">
-  <img src="docs/images/Screenshot_2026-03-09_223205.png" width="80%" alt="3D interactive cube — left-click to rotate layers, right-click to orbit" />
+  <img src="docs/images/Screenshot 2026-03-09 223205.png" width="80%" alt="3D interactive cube — left-click to rotate layers, right-click to orbit" />
 </p>
 
 The 3D view supports left-click-drag to rotate individual layers and right-click-drag to orbit the whole cube. Both interactions needed to be distinguishable from each other at the start of a drag. We used a small movement dead zone and determined intent from the initial drag direction before committing to either mode.
@@ -215,7 +215,7 @@ The 3D view is visually satisfying but not always the most useful tool. When a s
 The 2D net layout — U on top, L/F/R/B across the middle, D on the bottom — is the standard representation used in speedcubing notation and in every academic paper on Rubik's Cube algorithms. We implemented it first as a debugging aid and kept it as a primary view because it proved genuinely more readable for state verification.
 
 <p align="center">
-  <img src="docs/images/Screenshot_2026-03-09_223155.png" width="80%" alt="2D net view — all six faces visible simultaneously" />
+  <img src="docs/images/Screenshot 2026-03-09 223155.png" width="80%" alt="2D net view — all six faces visible simultaneously" />
 </p>
 
 Each face is a 3×3 grid of coloured squares. The colours update in real time as moves are applied during the animation. Watching the scramble unravel with all six faces visible at once makes the algorithm's behaviour legible in a way the 3D view alone does not.
@@ -225,7 +225,7 @@ Each face is a 3×3 grid of coloured squares. The colours update in real time as
 ### The Full App: How It All Comes Together
 
 <p align="center">
-  <img src="docs/images/Screenshot_2026-03-09_223143.png" width="92%" alt="Full application — input panel left, 2D view right" />
+  <img src="docs/images/Screenshot 2026-03-09 223143.png" width="92%" alt="Full application — input panel left, 2D view right" />
 </p>
 
 The left panel handles input. You can type a scramble in standard notation (`R U R' U'`), paste a 9×12 colour net as a string, or drop a `.txt` file onto the upload zone. Pressing Apply sets the cube state. Pressing Solve runs the two-phase algorithm and begins the animated playback.
@@ -235,7 +235,7 @@ The right panel is the visualisation, switchable between 2D and 3D at any time. 
 The step-by-step animation was the last major engineering challenge. Each frame needs to: apply the next move to the cube state, update both the 2D net colours and the 3D mesh positions, increment the move counter, and update the slider. All of this needs to happen in consistent order so the two views never diverge. We solved this by maintaining a single source-of-truth `CubeState` object — neither view updates itself directly; both subscribe to state changes and re-render reactively.
 
 <p align="center">
-  <img src="docs/images/Recording_2026-03-09_223242.gif" width="760" alt="Step-through solve — scrub through every move" />
+  <img src="docs/images/Recording 2026-03-09 223346.gif" width="760" alt="Step-through solve — scrub through every move" />
 </p>
 
 <br>
