@@ -288,7 +288,7 @@ Each face is a 3×3 grid of coloured squares. The colours update in real time as
 ### The Full App: How It All Comes Together
 
 <p align="center">
-  <img src="docs/images/Screenshot_2026-03-09_223143.png" width="92%" alt="Full application , input panel left, 2D view right" />
+  <img src="docs/images/Screenshot 2026-03-09 223143.png" width="92%" alt="Full application , input panel left, 2D view right" />
 </p>
 
 The left panel handles input. You can type a scramble in standard notation (`R U R' U'`), paste a 9×12 colour net as a string, or drop a `.txt` file onto the upload zone. Pressing Apply sets the cube state. Pressing Solve runs the two-phase algorithm and begins the animated playback.
@@ -298,7 +298,7 @@ The right panel is the visualisation, switchable between 2D and 3D at any time. 
 The step-by-step animation was the last major engineering challenge. Each frame needs to: apply the next move to the cube state, update both the 2D net colours and the 3D mesh positions, increment the move counter, and update the slider. All of this needs to happen in consistent order so the two views never diverge. We solved this by maintaining a single source-of-truth `CubeState` object , neither view updates itself directly; both subscribe to state changes and re-render reactively.
 
 <p align="center">
-  <img src="docs/images/Recording_2026-03-09_223242.gif" width="760" alt="Step-through solve , scrub through every move" />
+  <img src="docs/images/Recording 2026-03-09 223346.gif" width="760" alt="Step-through solve , scrub through every move" />
 </p>
 
 <br>
